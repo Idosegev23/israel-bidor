@@ -265,7 +265,8 @@ export class ScrapeOrchestrator {
             }
 
             // Save highlight item
-            const { error: itemError } = await this.supabase.from('talent_highlight_items').upsert(
+            console.log(`[Orchestrator] Saving item ${item.story_id} to highlight_id ${savedHighlight.id}`);
+            const { data: savedItem, error: itemError } = await this.supabase.from('talent_highlight_items').upsert(
               {
                 highlight_id: savedHighlight.id,
                 story_id: item.story_id,
@@ -283,9 +284,12 @@ export class ScrapeOrchestrator {
               {
                 onConflict: 'story_id',
               }
-            );
+            ).select();
 
-            if (!itemError) {
+            if (itemError) {
+              console.error(`[Orchestrator] Error saving item ${item.story_id}:`, itemError);
+            } else {
+              console.log(`[Orchestrator] ✅ Item saved: ${item.story_id}`);
               stats.highlightItemsSaved++;
             }
           }

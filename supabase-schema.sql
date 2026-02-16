@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS talent_highlight_items (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX idx_highlight_item_story_id ON talent_highlight_items(story_id);
 CREATE INDEX idx_highlight_item_highlight ON talent_highlight_items(highlight_id);
 CREATE INDEX idx_highlight_item_processed ON talent_highlight_items(processed);
 
