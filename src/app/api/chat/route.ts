@@ -5,6 +5,7 @@ import {
   HarmBlockThreshold,
 } from '@google/genai';
 import { createServerClient } from '@/lib/supabase/server';
+import { findSimilarTalentContent } from '@/lib/trends/embeddings';
 
 export const runtime = 'nodejs';
 
@@ -56,15 +57,43 @@ const STOP_WORDS = new Set([
   'מה', 'מי', 'למה', 'איך', 'כמה', 'של', 'על', 'עם', 'זה', 'זאת',
   'אני', 'אתה', 'את', 'הוא', 'היא', 'הם', 'הן', 'יש', 'אין', 'כן',
   'לא', 'תן', 'תגיד', 'ספר', 'תראה', 'בבקשה', 'לי', 'שלו', 'שלה',
+  'על', 'בין', 'גם', 'רק', 'כל', 'אם', 'או', 'עוד', 'כבר', 'אחרי',
+  'לפני', 'בגלל', 'בשביל', 'כמו', 'איפה', 'מתי', 'כזה', 'כזו',
 ]);
 
+// Strip common Hebrew prefixes: ה(the) ב(in) ל(to) מ(from) ש(that) כ(like) ו(and)
+const HE_PREFIX_RE = /^[הבלמשכו]/;
+
+function stripHebrewPrefix(word: string): string {
+  if (word.length <= 2) return word;
+  // Don't strip if the result would be too short
+  const stripped = word.replace(HE_PREFIX_RE, '');
+  return stripped.length >= 2 ? stripped : word;
+}
+
 function extractKeywords(query: string): string[] {
-  return (query ?? '')
+  const raw = (query ?? '')
     .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
     .split(/\s+/)
-    .map((w) => w.trim().toLowerCase())
-    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w))
-    .slice(0, 8);
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
+
+  // Include both original words AND prefix-stripped variants
+  const keywords: string[] = [];
+  const seen = new Set<string>();
+  for (const w of raw) {
+    const lower = w.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      keywords.push(lower);
+    }
+    const stripped = stripHebrewPrefix(lower);
+    if (stripped !== lower && !seen.has(stripped)) {
+      seen.add(stripped);
+      keywords.push(stripped);
+    }
+  }
+  return keywords.slice(0, 15);
 }
 
 function scorePost(
@@ -104,14 +133,14 @@ async function fetchRelevantContext(query: string) {
     throw new Error(`פרופיל לא נמצא: ${TALENT_USERNAME}`);
   }
 
-  // Fetch posts, highlights, highlight transcriptions, insights concurrently
-  const [postsRes, highlightsRes, transcriptionsRes, insightsRes] = await Promise.all([
+  // Fetch posts, highlights, transcriptions, insights, AND vector results concurrently
+  const [postsRes, highlightsRes, transcriptionsRes, insightsRes, vectorResults] = await Promise.all([
     supabase
       .from('talent_posts')
       .select('id, caption, transcription, likes_count, comments_count, posted_at, post_url, thumbnail_url, media_type')
       .eq('talent_id', profile.id)
       .order('posted_at', { ascending: false })
-      .limit(50),
+      .limit(200),
 
     supabase
       .from('talent_highlights')
@@ -134,6 +163,12 @@ async function fetchRelevantContext(query: string) {
       .order('generated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+
+    // Vector similarity search (graceful degradation if embeddings not ready)
+    findSimilarTalentContent(query, 20, 0.35).catch((err) => {
+      console.warn('[Chat] Vector search unavailable, using keyword fallback:', err.message);
+      return [] as Awaited<ReturnType<typeof findSimilarTalentContent>>;
+    }),
   ]);
 
   const allPosts = (postsRes.data ?? []) as any[];
@@ -145,32 +180,106 @@ async function fetchRelevantContext(query: string) {
   const hlTitleMap = new Map<string, string>();
   for (const h of highlights) hlTitleMap.set(h.id, h.title ?? '');
 
-  // Rank posts by query relevance
+  // Build post lookup by id
+  const postById = new Map<string, any>();
+  for (const p of allPosts) postById.set(p.id, p);
+
+  // --- Direct text search for posts not in allPosts (catches posts beyond the 200 limit) ---
   const keywords = extractKeywords(query);
-  const ranked = [...allPosts]
-    .map((p) => ({ p, s: scorePost(p, keywords) }))
+  // Use the 2-3 longest keywords for direct DB text search
+  const searchTerms = keywords
+    .filter(k => k.length >= 3)
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 3);
+
+  if (searchTerms.length > 0) {
+    try {
+      // Search for any of the top keywords in captions (full-text across all posts)
+      const textSearchPromises = searchTerms.map(term =>
+        supabase
+          .from('talent_posts')
+          .select('id, caption, transcription, likes_count, comments_count, posted_at, post_url, thumbnail_url, media_type')
+          .eq('talent_id', profile.id)
+          .ilike('caption', `%${term}%`)
+          .limit(10)
+      );
+      const textResults = await Promise.all(textSearchPromises);
+      for (const res of textResults) {
+        for (const p of (res.data ?? [])) {
+          if (!postById.has(p.id)) {
+            allPosts.push(p);
+            postById.set(p.id, p);
+          }
+        }
+      }
+      console.log(`[Chat] Text search added ${textResults.reduce((n, r) => n + (r.data?.length ?? 0), 0)} potential matches for terms: ${searchTerms.join(', ')}`);
+    } catch (err: any) {
+      console.warn('[Chat] Text search failed:', err.message);
+    }
+  }
+
+  // --- Vector-ranked posts (semantic matches) ---
+  const vectorPostIds = new Set<string>();
+  const vectorRankedPosts: any[] = [];
+  for (const result of vectorResults) {
+    if (result.content_type === 'post' && postById.has(result.id)) {
+      vectorPostIds.add(result.id);
+      vectorRankedPosts.push({ ...postById.get(result.id), _similarity: result.similarity });
+    }
+  }
+
+  if (vectorRankedPosts.length > 0) {
+    console.log(`[Chat] Vector search found ${vectorRankedPosts.length} matching posts (top sim: ${vectorRankedPosts[0]._similarity.toFixed(3)})`);
+  }
+
+  // --- Keyword fallback for posts not covered by vector search ---
+  // (keywords already extracted above for text search)
+  const keywordRanked = allPosts
+    .filter((p: any) => !vectorPostIds.has(p.id))
+    .map((p: any) => ({ p, s: scorePost(p, keywords) }))
     .sort((a, b) => b.s - a.s);
 
-  const topRelevant = ranked.slice(0, 10).map((r) => r.p);
-  const hotPosts = [...allPosts].sort((a, b) => (b.likes_count ?? 0) - (a.likes_count ?? 0)).slice(0, 5);
-
-  // Deduplicate
+  // Combine: vector results first, then keyword-scored
   const seen = new Set<string>();
   const postsForContext: any[] = [];
-  for (const p of [...topRelevant, ...hotPosts]) {
-    const key = p.id || p.post_url;
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
+
+  for (const p of vectorRankedPosts) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
     postsForContext.push(p);
-    if (postsForContext.length >= 12) break;
   }
+
+  for (const { p } of keywordRanked) {
+    if (postsForContext.length >= 25) break;
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    postsForContext.push(p);
+  }
+
+  const hotPosts = [...allPosts].sort((a, b) => (b.likes_count ?? 0) - (a.likes_count ?? 0)).slice(0, 5);
 
   // Enrich highlight transcriptions with their parent title
   const enrichedTranscriptions = highlightTranscriptions.map((t: any) => ({
     highlight_title: hlTitleMap.get(t.highlight_id) ?? '',
-    transcription: (t.transcription ?? '').slice(0, 200),
+    transcription: (t.transcription ?? '').slice(0, 400),
     media_type: t.media_type,
   }));
+
+  // Also include vector-matched highlight items at the front
+  const vectorHighlightItems = vectorResults
+    .filter((r) => r.content_type === 'highlight_item')
+    .map((r) => ({
+      highlight_title: r.highlight_title ?? '',
+      transcription: (r.text_content ?? '').slice(0, 200),
+      media_type: r.media_type,
+    }));
+
+  const allEnrichedTranscriptions = [
+    ...vectorHighlightItems,
+    ...enrichedTranscriptions.filter(
+      (t: any) => !vectorHighlightItems.some((v) => v.transcription === t.transcription)
+    ),
+  ].slice(0, 15);
 
   return {
     profile,
@@ -178,7 +287,7 @@ async function fetchRelevantContext(query: string) {
     postsForContext,
     hotPosts,
     highlights,
-    enrichedTranscriptions,
+    enrichedTranscriptions: allEnrichedTranscriptions,
     insights,
   };
 }
@@ -195,27 +304,36 @@ function buildSystemInstruction(): string {
 - **אם דיברת על פוסט/נושא ספציפי בתגובה הקודמת שלך, ממשיך לדבר עליו בדיוק.**
 - אם המשתמש שואל "שלח לי קישור" או "ספר לי עוד" - הכוונה למה שהזכרת **בתגובה הקודמת שלך**.
 - אל תקפוץ לפוסט אחר או נושא אחר אלא אם המשתמש שואל במפורש על משהו חדש.
-- אם אתה לא בטוח על מה המשתמש שואל, תתייחס להקשר של ההודעות הקודמות.
+
+🔍 חיפוש מידע - **כלל חשוב מאוד**:
+- **חפש בכל הפוסטים שמסופקים לך** לפני שאתה אומר שאין לך מידע.
+- קרא את כל ה-captions בקפידה — המידע שם, לפעמים בשורות האחרונות.
+- אם שואלים על אדם/שם/אירוע — חפש את השם בכל הפוסטים, כולל וריאציות (שם מלא, שם פרטי, כינויים).
+- **אל תגיד "אין לי מידע" אם יש פוסט רלוונטי בנתונים!** חפש טוב לפני שאתה מוותר.
+- אם הנושא מוזכר בכמה פוסטים, תן תמונה כוללת ולא רק פוסט אחד.
 
 דיוק ואמינות:
 - עונה רק על בסיס הקונטקסט והנתונים שמסופקים לך.
 - **אין לך גישה לתגובות של אנשים על הפוסטים** - יש לך רק את תוכן הפוסטים, לייקים, תמלול וידאו, ומספר התגובות.
-- אל תמציא עובדות. אם אין מידע, תגיד "אין לי את זה במידע שיש לי כרגע".
-- אם לא בטוח, תנסח בזהירות: "נראה ש...", "אפשר להגיד ש..."
+- אל תמציא עובדות. אם באמת חיפשת בכל הנתונים ואין מידע, תגיד "לא מצאתי מידע על זה בפוסטים שיש לי כרגע".
+- אם לא בטוח, תנסח בזהירות: "נראה ש...", "לפי מה שכתוב בפוסט..."
+- כשאתה מתייחס לפוסט — תן את ה-references שלו ב-JSON כדי שהמשתמש יוכל לראות אותו.
 
 סגנון תשובה:
 - עברית בלבד.
 - טון חם, יומיומי, כמו חבר שעוקב אחרי החשבון.
-- קצר וקולע: 2-4 משפטים. אם צריך רשימה - עד 4 בולטים.
+- קצר וקולע: 2-4 משפטים. אם צריך רשימה - עד 5 פריטים.
 - 0-3 אימוג׳ים רלוונטיים, לא יותר.
 - בלי Markdown, בלי כותרות, בלי קוד.
 - אל תזרוק מספרים ונתונים אלא אם נשאל ספציפית.
 
 שאלות המשך (follow_up):
-- כתוב אותן כשאלה ישירה **קצרה** שהמשתמש ישאל.
-- דוגמאות טובות: "על מה מדובר?", "מה קרה אחר כך?", "איך זה התפתח?", "מה השיר?", "מה הסיפור?"
-- אל תכתוב: "רוצה לדעת...", "מעניין אותך...", "תשמע על...", "קולט..."
+- כתוב שאלת המשך שקשורה ישירות לנושא שדובר עליו.
+- שאלה ישירה **קצרה** שהמשתמש ישאל.
+- דוגמאות טובות: "מה קרה אחר כך?", "מי עוד מעורב?", "איזה תגובות היו?", "מה הסיפור המלא?"
+- אל תכתוב: "רוצה לדעת...", "מעניין אותך...", "תשמע על..."
 - תמיד התחל עם מילת שאלה: "מה", "איך", "למה", "מי", "איזה"
+- **אל תציע שאלות על נושא אחר לגמרי** — שאלת ההמשך חייבת להיות על אותו נושא.
 
 פלט:
 - החזר JSON תקני בלבד לפי הסכמה.
@@ -278,8 +396,8 @@ function buildContextMessage(rag: ReturnType<typeof fetchRelevantContext> extend
     posts: rag.postsForContext.map((p: any) => ({
       id: p.id,
       posted_at: p.posted_at ?? null,
-      caption: (p.caption ?? '').slice(0, 150),
-      transcription: (p.transcription ?? '').slice(0, 150),
+      caption: (p.caption ?? '').slice(0, 500),
+      transcription: (p.transcription ?? '').slice(0, 300),
       post_url: p.post_url ?? null,
       likes: p.likes_count ?? 0,
       comments: p.comments_count ?? 0,
@@ -361,16 +479,37 @@ function buildTalentCard(profile: any) {
   };
 }
 
+function extractCardTitle(caption: string): string {
+  if (!caption) return 'פוסט מישראל בידור';
+  // Take the first meaningful line (skip empty lines and lines that are just emojis/hashtags)
+  const lines = caption.split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    // Skip lines that are only hashtags or emojis
+    const cleaned = line.replace(/[#@]\S+/g, '').replace(/[\u{1F600}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+    if (cleaned.length >= 10) {
+      // Found a meaningful first line — truncate at word boundary
+      if (cleaned.length <= 80) return cleaned;
+      const breakAt = cleaned.lastIndexOf(' ', 80);
+      return cleaned.slice(0, breakAt > 30 ? breakAt : 80).trim() + '...';
+    }
+  }
+  // Fallback: just use first 80 chars
+  const text = caption.replace(/[#@]\S+/g, '').trim();
+  if (text.length <= 80) return text || 'פוסט מישראל בידור';
+  const breakAt = text.lastIndexOf(' ', 80);
+  return text.slice(0, breakAt > 30 ? breakAt : 80).trim() + '...';
+}
+
 function buildContentCard(p: any, profile: any, reason?: string) {
   return {
     type: 'content_card',
     data: {
       id: p.id || p.post_url,
-      title: (p.caption ?? 'פוסט').slice(0, 120),
+      title: extractCardTitle(p.caption ?? ''),
       url: p.post_url,
       thumbnail_url: p.thumbnail_url || null,
       source: 'instagram',
-      heat_score: ((p.likes_count ?? 0) + 2 * (p.comments_count ?? 0)) / 150,
+      heat_score: Math.round(((p.likes_count ?? 0) + 2 * (p.comments_count ?? 0)) / 100),
       views_30m: p.likes_count ?? 0,
       talent_name: profile.full_name,
       talent_username: profile.username,
@@ -473,24 +612,27 @@ export async function POST(request: NextRequest) {
         .then(({ error }) => { if (error) console.error('[Chat] שמירת תגובת AI נכשלה:', error.message); });
     }
 
-    // Build attachments
+    // Build attachments — only show relevant content cards
     const attachments: Array<{ type: string; data: any }> = [];
     attachments.push(buildTalentCard(rag.profile));
 
-    // Attach referenced posts first
+    // Attach referenced posts first (these are the posts Gemini mentioned in its answer)
     const refIds = new Set(refs.filter((r) => r.kind === 'post').map((r) => String(r.id)));
-    const refPosts = rag.postsForContext.filter((p: any) => refIds.has(String(p.id)));
-    for (const p of refPosts.slice(0, 3)) {
+    const allPostsById = new Map<string, any>();
+    for (const p of rag.allPosts) allPostsById.set(String(p.id), p);
+    for (const p of rag.postsForContext) allPostsById.set(String(p.id), p);
+
+    const refPosts = [...refIds].map(id => allPostsById.get(id)).filter(Boolean);
+    for (const p of refPosts.slice(0, 4)) {
       const reason = refs.find((r) => r.kind === 'post' && String(r.id) === String(p.id))?.reason;
       attachments.push(buildContentCard(p, rag.profile, reason));
     }
 
-    // Then hot posts (non-duplicates)
-    const already = new Set(refPosts.map((p: any) => String(p.id)));
-    for (const p of rag.hotPosts) {
-      if (already.has(String(p.id))) continue;
-      attachments.push(buildContentCard(p, rag.profile));
-      if (attachments.length >= 6) break;
+    // If Gemini didn't reference specific posts, show the top vector/keyword matches
+    if (refPosts.length === 0 && rag.postsForContext.length > 0) {
+      for (const p of rag.postsForContext.slice(0, 3)) {
+        attachments.push(buildContentCard(p, rag.profile));
+      }
     }
 
     return NextResponse.json({

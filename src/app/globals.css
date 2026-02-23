@@ -117,3 +117,25 @@ body {
 .hotspot-marker {
   animation: hotspot-pulse 2s ease-in-out infinite;
 }
+
+/* Skeleton shimmer for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--color-zinc-200, #e4e4e7) 25%, var(--color-zinc-100, #f4f4f5) 50%, var(--color-zinc-200, #e4e4e7) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(90deg, var(--color-zinc-800, #27272a) 25%, var(--color-zinc-700, #3f3f46) 50%, var(--color-zinc-800, #27272a) 75%);
+  background-size: 200% 100%;
+}
+
+/* Shadow utility */
+.shadow-soft {
+  box-shadow: var(--shadow-soft);
+}

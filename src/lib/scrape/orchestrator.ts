@@ -6,6 +6,7 @@
 import { getScrapeCreatorsClient } from './scrapeCreatorsClient';
 import { getGeminiProcessor } from '../ai/gemini';
 import { createServerClient } from '../supabase/server';
+import { generateEmbedding, buildPostEmbeddingText } from '../trends/embeddings';
 
 // ============================================
 // Type Definitions
@@ -175,7 +176,24 @@ export class ScrapeOrchestrator {
           }
         );
 
-        if (!error) stats.postsSaved++;
+        if (!error) {
+          stats.postsSaved++;
+
+          // Fire-and-forget: generate embedding for new post
+          const embText = buildPostEmbeddingText(post);
+          if (embText.length > 10) {
+            generateEmbedding(embText)
+              .then(async (embedding) => {
+                await this.supabase
+                  .from('talent_posts')
+                  .update({ embedding: JSON.stringify(embedding) })
+                  .eq('post_id', post.post_id);
+              })
+              .catch((err) => {
+                console.warn(`[Orchestrator] Embedding failed for post ${post.post_id}:`, err.message);
+              });
+          }
+        }
       }
 
       report('posts', 50, `Saved ${stats.postsSaved} posts`);
@@ -237,15 +255,14 @@ export class ScrapeOrchestrator {
         try {
           const highlightDetails = await this.scrapeClient.getHighlightDetails(highlight.highlight_id);
 
-          // Filter stories from 2026-02-08 onwards
-          const cutoffDate = new Date('2026-02-08T00:00:00Z');
+          // Filter stories from 2026-02-01 onwards
+          const cutoffDate = new Date('2026-02-01T00:00:00Z');
           const recentItems = highlightDetails.items.filter(item => {
             if (!item.timestamp) return false;
-            const itemDate = new Date(item.timestamp);
-            return itemDate >= cutoffDate;
+            return new Date(item.timestamp) >= cutoffDate;
           });
 
-          console.log(`[Orchestrator] Highlight "${highlight.title}": ${recentItems.length}/${highlightDetails.items.length} stories from 8.2+`);
+          console.log(`[Orchestrator] Highlight "${highlight.title}": ${recentItems.length}/${highlightDetails.items.length} stories from 1.2+`);
 
           // Save and transcribe each recent story
           for (const item of recentItems) {
@@ -291,6 +308,20 @@ export class ScrapeOrchestrator {
             } else {
               console.log(`[Orchestrator] ✅ Item saved: ${item.story_id}`);
               stats.highlightItemsSaved++;
+
+              // Fire-and-forget: generate embedding for transcribed highlight item
+              if (transcription && transcription.length > 10) {
+                generateEmbedding(transcription)
+                  .then(async (embedding) => {
+                    await this.supabase
+                      .from('talent_highlight_items')
+                      .update({ embedding: JSON.stringify(embedding) })
+                      .eq('story_id', item.story_id);
+                  })
+                  .catch((err) => {
+                    console.warn(`[Orchestrator] Embedding failed for story ${item.story_id}:`, err.message);
+                  });
+              }
             }
           }
         } catch (error: any) {

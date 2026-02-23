@@ -49,10 +49,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     const targetTalents: string[] = config?.value || [
-      'noa_kirel',
-      'staticben',
-      'shira_haas',
-      'gal_gadot',
+      'israel_bidur',
     ];
 
     logs.push(`Target talents: ${targetTalents.join(', ')}`);

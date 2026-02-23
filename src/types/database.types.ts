@@ -31,6 +31,21 @@ export interface TalentPost {
   views_count?: number;
   posted_at?: string;
   scraped_at: string;
+  transcription?: string;
+  embedding?: number[] | null;
+}
+
+export interface TalentHighlightItem {
+  id: string;
+  highlight_id: string;
+  story_id: string;
+  media_type: 'photo' | 'video' | 'other';
+  media_url?: string;
+  video_url?: string;
+  thumbnail_url?: string;
+  timestamp?: string;
+  transcription?: string;
+  embedding?: number[] | null;
 }
 
 export interface TalentHighlight {

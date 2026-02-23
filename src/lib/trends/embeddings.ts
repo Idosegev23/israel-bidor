@@ -1,6 +1,6 @@
 /**
  * Embeddings — Generate text embeddings via OpenAI
- * Used for topic clustering of US entertainment content
+ * Used for topic clustering and semantic search (talent content + US content)
  */
 
 import OpenAI from 'openai';
@@ -139,6 +139,175 @@ export async function findSimilarContent(
 
   if (error) {
     console.error('[Embeddings] Similarity search failed:', error.message);
+    return [];
+  }
+
+  return data || [];
+}
+
+// ============================================
+// Talent Content Embeddings
+// ============================================
+
+/**
+ * Build embeddable text from a talent post (caption + transcription)
+ */
+export function buildPostEmbeddingText(post: {
+  caption?: string | null;
+  transcription?: string | null;
+}): string {
+  const parts: string[] = [];
+  if (post.caption?.trim()) parts.push(post.caption.trim());
+  if (post.transcription?.trim()) parts.push(post.transcription.trim());
+  return parts.join('. ').substring(0, 8000);
+}
+
+/**
+ * Generate and store embeddings for talent_posts that don't have one
+ */
+export async function embedUnprocessedTalentPosts(options?: {
+  talentId?: string;
+  limit?: number;
+}): Promise<{ processed: number; errors: string[] }> {
+  const supabase = createServerClient();
+  let processed = 0;
+  const errors: string[] = [];
+  const limit = options?.limit ?? 200;
+
+  let query = supabase
+    .from('talent_posts')
+    .select('id, caption, transcription')
+    .is('embedding', null)
+    .order('posted_at', { ascending: false })
+    .limit(limit);
+
+  if (options?.talentId) {
+    query = query.eq('talent_id', options.talentId);
+  }
+
+  const { data: items } = await query;
+  if (!items || items.length === 0) return { processed: 0, errors: [] };
+
+  // Filter to posts with text content
+  const embeddable = items.filter(
+    (item) => (item.caption?.trim() || item.transcription?.trim())
+  );
+
+  console.log(`[Embeddings] Processing ${embeddable.length} talent posts`);
+
+  for (let i = 0; i < embeddable.length; i += 10) {
+    const batch = embeddable.slice(i, i + 10);
+    const texts = batch.map((item) => buildPostEmbeddingText(item));
+
+    try {
+      const embeddings = await generateEmbeddings(texts);
+
+      for (let j = 0; j < batch.length; j++) {
+        const { error } = await supabase
+          .from('talent_posts')
+          .update({ embedding: JSON.stringify(embeddings[j]) })
+          .eq('id', batch[j].id);
+
+        if (error) {
+          errors.push(`[post:${batch[j].id}] ${error.message}`);
+        } else {
+          processed++;
+        }
+      }
+    } catch (error: any) {
+      errors.push(`[post-batch:${i}] ${error.message}`);
+    }
+
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  console.log(`[Embeddings] Posts done: ${processed} processed, ${errors.length} errors`);
+  return { processed, errors };
+}
+
+/**
+ * Generate and store embeddings for talent_highlight_items that don't have one
+ */
+export async function embedUnprocessedHighlightItems(options?: {
+  limit?: number;
+}): Promise<{ processed: number; errors: string[] }> {
+  const supabase = createServerClient();
+  let processed = 0;
+  const errors: string[] = [];
+  const limit = options?.limit ?? 200;
+
+  const { data: items } = await supabase
+    .from('talent_highlight_items')
+    .select('id, transcription')
+    .is('embedding', null)
+    .not('transcription', 'is', null)
+    .order('timestamp', { ascending: false })
+    .limit(limit);
+
+  if (!items || items.length === 0) return { processed: 0, errors: [] };
+
+  console.log(`[Embeddings] Processing ${items.length} highlight items`);
+
+  for (let i = 0; i < items.length; i += 10) {
+    const batch = items.slice(i, i + 10);
+    const texts = batch.map((item) => (item.transcription ?? '').substring(0, 8000));
+
+    try {
+      const embeddings = await generateEmbeddings(texts);
+
+      for (let j = 0; j < batch.length; j++) {
+        const { error } = await supabase
+          .from('talent_highlight_items')
+          .update({ embedding: JSON.stringify(embeddings[j]) })
+          .eq('id', batch[j].id);
+
+        if (error) {
+          errors.push(`[highlight:${batch[j].id}] ${error.message}`);
+        } else {
+          processed++;
+        }
+      }
+    } catch (error: any) {
+      errors.push(`[highlight-batch:${i}] ${error.message}`);
+    }
+
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  console.log(`[Embeddings] Highlights done: ${processed} processed, ${errors.length} errors`);
+  return { processed, errors };
+}
+
+/**
+ * Find relevant talent content using vector similarity search
+ */
+export async function findSimilarTalentContent(
+  queryText: string,
+  limit: number = 10,
+  minSimilarity: number = 0.60
+): Promise<Array<{
+  id: string;
+  content_type: 'post' | 'highlight_item';
+  text_content: string;
+  post_url: string | null;
+  media_type: string | null;
+  likes_count: number | null;
+  comments_count: number | null;
+  posted_at: string | null;
+  highlight_title: string | null;
+  similarity: number;
+}>> {
+  const embedding = await generateEmbedding(queryText);
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase.rpc('match_talent_content', {
+    query_embedding: JSON.stringify(embedding),
+    match_threshold: minSimilarity,
+    match_count: limit,
+  });
+
+  if (error) {
+    console.error('[Embeddings] Talent similarity search failed:', error.message);
     return [];
   }
 

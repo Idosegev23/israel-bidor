@@ -13,6 +13,10 @@
     "scrape:deep": "tsx scripts/scrape-israel-deep.ts",
     "scrape:highlights": "tsx scripts/scrape-highlights-only.ts",
     "process:ai": "tsx scripts/process-talent-ai.ts",
+    "rescrape:full": "tsx scripts/rescrape-full.ts",
+    "db:setup-vectors": "tsx scripts/setup-vectors.ts",
+    "embeddings:generate": "tsx scripts/generate-embeddings.ts",
+    "transcribe:backfill": "tsx scripts/backfill-transcriptions.ts",
     "cron:test": "curl -X GET http://localhost:3002/api/cron/daily-scrape -H \"Authorization: Bearer israel_bidur_secret_2026\""
   },
   "dependencies": {
