@@ -579,28 +579,53 @@ export async function POST(request: NextRequest) {
     const candidate = response.candidates?.[0];
     const parts = candidate?.content?.parts || [];
     const fullText = parts.map((p: any) => p.text || '').join('');
-    const raw = (fullText || response.text || '').replace(/\u0000/g, '').trim();
+    const raw = (fullText || response.text || '').replace(/\u0000/g, '').replace(/^\uFEFF/, '').trim();
     
     console.log('[Chat] Response parts count:', parts.length);
     console.log('[Chat] Response length:', raw.length, 'chars');
     console.log('[Chat] Response preview:', raw.substring(0, 150));
     if (raw.length > 150) console.log('[Chat] Response end:', raw.substring(raw.length - 150));
 
-    // Parse structured JSON
+    // Parse structured JSON — with multiple fallback strategies
     let parsed: ModelJson | null = null;
+
+    // Strategy 1: Direct JSON.parse
     try {
       parsed = JSON.parse(raw);
       console.log('[Chat] ✓ JSON parsed successfully');
     } catch (err) {
-      console.error('[Chat] ✗ JSON parse failed:', err);
-      console.error('[Chat] Raw response was:', raw);
-      parsed = null;
+      console.warn('[Chat] Direct JSON parse failed, trying fallbacks...');
+
+      // Strategy 2: Extract from markdown code blocks (```json ... ```)
+      const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        try {
+          parsed = JSON.parse(codeBlockMatch[1].trim());
+          console.log('[Chat] ✓ JSON extracted from code block');
+        } catch {}
+      }
+
+      // Strategy 3: Regex extract the answer field directly
+      if (!parsed) {
+        const answerMatch = raw.match(/"answer"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        if (answerMatch) {
+          parsed = {
+            answer: answerMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n'),
+            confidence: 'medium',
+            references: [],
+          };
+          console.log('[Chat] ✓ Answer extracted via regex fallback');
+        } else {
+          console.error('[Chat] ✗ All JSON parse strategies failed');
+          console.error('[Chat] Raw response was:', raw.substring(0, 300));
+        }
+      }
     }
 
+    // Never show raw JSON to the user
     const reply =
       (parsed?.answer ?? '').trim() ||
-      (raw.length > 0 && raw.length < 500 ? raw : '') ||
-      'משהו השתבש, נסה שוב בבקשה';
+      'לא הצלחתי לעבד את התשובה, נסה שוב בבקשה 🙏';
 
     const followUp = (parsed?.follow_up ?? '').trim();
     const confidence = parsed?.confidence ?? 'medium';
