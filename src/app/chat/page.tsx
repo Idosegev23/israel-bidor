@@ -35,7 +35,7 @@ const WELCOME_MESSAGE_ID = 'welcome-initial';
 const WELCOME_MESSAGE: Message = {
   id: WELCOME_MESSAGE_ID,
   role: 'assistant',
-  content: 'היי! 👋 אני העוזר החכם של ישראל בידור. יש לי גישה לכל התוכן שלו — פוסטים, הייליטס וסרטונים מתומללים. שאל אותי כל דבר!',
+  content: 'היי! 👋 אני העוזר החכם של ישראל בידור. יש לי גישה לכל התוכן — פוסטים, הייליטס וסרטונים מתומללים. שאל אותי כל דבר!',
   timestamp: new Date(),
   meta: { followUp: '' },
 };
@@ -135,47 +135,58 @@ export default function ChatPage() {
   // ── Render ─────────────────────────────
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-violet-50/50 via-zinc-50 to-orange-50/30 dark:from-zinc-950 dark:via-zinc-900 dark:to-violet-950/50 flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-zinc-200/50 dark:border-zinc-800/50 shadow-sm">
-        <div className="max-w-lg mx-auto flex items-center justify-between p-4 h-16">
+    <div dir="rtl" className="min-h-screen font-sans flex flex-col bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
+      {/* רקע פרימיום עדין למסך הצ'אט */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-20%] right-[-10%] w-[40rem] h-[40rem] bg-indigo-500/10 dark:bg-indigo-900/20 rounded-full blur-[100px] mix-blend-multiply dark:mix-blend-lighten"></div>
+        <div className="absolute bottom-[-10%] left-[-10%] w-[30rem] h-[30rem] bg-fuchsia-500/10 dark:bg-fuchsia-900/20 rounded-full blur-[100px] mix-blend-multiply dark:mix-blend-lighten"></div>
+      </div>
+
+      {/* Header - Glassmorphism עמוק */}
+      <header className="sticky top-0 z-50 bg-white/60 dark:bg-slate-950/60 backdrop-blur-2xl border-b border-white/50 dark:border-white/5 shadow-sm shadow-indigo-500/5">
+        <div className="max-w-2xl mx-auto flex items-center justify-between p-4 h-18">
           <Link
             href="/"
-            className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="flex items-center justify-center w-11 h-11 rounded-full bg-white/50 dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-300 shadow-sm"
           >
-            <span className="text-xl">←</span>
+            <span className="text-xl text-slate-700 dark:text-slate-300 hover:-translate-x-1 transition-transform">←</span>
           </Link>
 
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-orange-500 flex items-center justify-center text-white shadow-md">
-                <span className="text-lg">🤖</span>
-              </div>
-              <div className="absolute bottom-0 left-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-zinc-950" />
-            </div>
+          <div className="flex items-center gap-4">
             <div className="text-center">
-              <h1 className="text-base font-bold bg-gradient-to-r from-violet-700 to-orange-600 bg-clip-text text-transparent dark:from-violet-400 dark:to-orange-400">
+              <h1 className="text-lg font-black bg-gradient-to-r from-indigo-600 via-fuchsia-500 to-orange-500 bg-clip-text text-transparent">
                 ישראל בידור AI
               </h1>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">🟢 מחובר ומוכן</span>
+              <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">מחובר ומוכן</span>
+              </div>
+            </div>
+            
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-600 to-fuchsia-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                <span className="text-xl">🤖</span>
+              </div>
             </div>
           </div>
-
-          <div className="w-10" />
+          
+          <div className="w-11" /> {/* Spacer for flex centering */}
         </div>
       </header>
 
-      {/* Messages */}
-      <main className="flex-1 overflow-y-auto pb-36">
-        <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
-          {/* Date */}
-          <div className="flex justify-center">
-            <span className="px-3 py-1 bg-white/60 dark:bg-zinc-800/50 backdrop-blur-sm rounded-full text-xs font-medium text-zinc-500 dark:text-zinc-400">
+      {/* Messages Area */}
+      <main className="flex-1 overflow-y-auto pb-40 relative z-10 scroll-smooth custom-scrollbar">
+        <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
+          {/* Date Badge */}
+          <div className="flex justify-center mb-8">
+            <span className="px-4 py-1.5 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md rounded-full text-[11px] font-bold tracking-wide text-slate-500 dark:text-slate-400 border border-white/40 dark:border-white/5 shadow-sm">
               {new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
             </span>
           </div>
 
-          {/* Message list */}
           <AnimatePresence mode="popLayout">
             {messages.map((msg, index) => {
               const isLast = index === messages.length - 1;
@@ -184,27 +195,28 @@ export default function ChatPage() {
               return (
                 <motion.div
                   key={msg.id}
-                  initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                  initial={{ opacity: 0, y: 15, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.3, ease: 'easeOut' }}
+                  transition={{ duration: 0.4, type: "spring", stiffness: 250, damping: 25 }}
                   layout
                 >
                   {msg.role === 'assistant' ? (
-                    <div className="flex items-start gap-3 max-w-[92%]">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-orange-500 flex items-center justify-center text-white shadow-md shrink-0 mt-0.5">
-                        <span className="text-sm">🤖</span>
+                    // עיצוב הודעת AI
+                    <div className="flex items-start gap-3 max-w-[92%] md:max-w-[85%]">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white shadow-md shrink-0 mt-1">
+                        <span className="text-sm">✨</span>
                       </div>
                       <div className="flex flex-col gap-1.5 min-w-0">
-                        <span className="text-[11px] font-medium text-zinc-400 mr-1">ישראל בידור AI</span>
-                        <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm p-4 rounded-2xl rounded-tr-sm shadow-soft border border-zinc-100/80 dark:border-zinc-800/80">
-                          <p className="text-sm leading-relaxed whitespace-pre-line text-zinc-800 dark:text-zinc-200">
+                        <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mr-2">ישראל בידור AI</span>
+                        <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl p-4 md:p-5 rounded-3xl rounded-tr-sm shadow-sm border border-white/60 dark:border-white/5">
+                          <p className="text-[15px] leading-relaxed whitespace-pre-line text-slate-800 dark:text-slate-200 font-medium">
                             {msg.content}
                           </p>
                         </div>
 
-                        {/* Attachments */}
+                        {/* Attachments Area */}
                         {msg.attachments && msg.attachments.length > 0 && isLast && (
-                          <div className="flex flex-col gap-2 mt-1 max-w-[90%]">
+                          <div className="flex flex-col gap-3 mt-2 max-w-full">
                             <MessageErrorBoundary>
                               {msg.attachments
                                 .filter((a) => a.type === 'talent_card')
@@ -227,25 +239,23 @@ export default function ChatPage() {
                           </div>
                         )}
 
-                        {/* Suggested actions / follow-up */}
+                        {/* הצעות פעולה (Suggestions) */}
                         {suggestions.length > 0 && (
                           <motion.div
-                            className="flex gap-2 mt-2 flex-wrap"
+                            className="flex gap-2 mt-3 flex-wrap"
                             initial="hidden"
                             animate="visible"
-                            variants={{
-                              visible: { transition: { staggerChildren: 0.08 } },
-                            }}
+                            variants={{ visible: { transition: { staggerChildren: 0.1 } } }}
                           >
                             {suggestions.map((action) => (
                               <motion.button
                                 key={action}
                                 variants={{
-                                  hidden: { opacity: 0, y: 8 },
+                                  hidden: { opacity: 0, y: 10 },
                                   visible: { opacity: 1, y: 0 },
                                 }}
                                 onClick={() => handleSend(action)}
-                                className="px-4 py-2 bg-violet-500/10 hover:bg-violet-500/20 dark:bg-violet-400/15 dark:hover:bg-violet-400/25 rounded-full text-sm font-medium text-violet-700 dark:text-violet-300 transition-colors active:scale-95"
+                                className="px-5 py-2.5 bg-white/60 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-700 backdrop-blur-md border border-indigo-100 dark:border-slate-700 rounded-full text-[13px] font-bold text-indigo-700 dark:text-indigo-300 transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95"
                               >
                                 {action}
                               </motion.button>
@@ -255,10 +265,11 @@ export default function ChatPage() {
                       </div>
                     </div>
                   ) : (
+                    // עיצוב הודעת משתמש
                     <div className="flex justify-end">
                       <div className="max-w-[85%]">
-                        <div className="bg-gradient-to-br from-violet-600 to-violet-700 text-white p-4 rounded-2xl rounded-tl-sm shadow-lg shadow-violet-500/20">
-                          <p className="text-sm leading-relaxed whitespace-pre-line">{msg.content}</p>
+                        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white p-4 md:p-5 rounded-3xl rounded-tl-sm shadow-lg shadow-indigo-500/25">
+                          <p className="text-[15px] leading-relaxed whitespace-pre-line font-medium">{msg.content}</p>
                         </div>
                       </div>
                     </div>
@@ -268,61 +279,53 @@ export default function ChatPage() {
             })}
           </AnimatePresence>
 
-          {/* Skeleton loader */}
+          {/* אנימציית טעינה (Skeleton) כשהבוט חושב */}
           {isLoading && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex items-start gap-3 max-w-[92%]"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-orange-500 flex items-center justify-center text-white shadow-md shrink-0 mt-0.5 opacity-70">
-                <span className="text-sm">🤖</span>
-              </div>
-              <div className="flex flex-col gap-2 flex-1 min-w-0">
-                <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm p-4 rounded-2xl rounded-tr-sm shadow-soft border border-zinc-100/80 dark:border-zinc-800/80">
-                  <div className="space-y-2.5">
-                    <div className="h-3 skeleton-shimmer rounded-full w-[85%]" />
-                    <div className="h-3 skeleton-shimmer rounded-full w-[65%]" style={{ animationDelay: '150ms' }} />
-                    <div className="h-3 skeleton-shimmer rounded-full w-[45%]" style={{ animationDelay: '300ms' }} />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <div className="w-48 h-24 skeleton-shimmer rounded-xl" style={{ animationDelay: '200ms' }} />
-                  <div className="w-48 h-24 skeleton-shimmer rounded-xl" style={{ animationDelay: '400ms' }} />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center shrink-0 mt-1 animate-pulse"></div>
+              <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-md p-5 rounded-3xl rounded-tr-sm shadow-sm border border-white/40 dark:border-white/5 min-w-[120px]">
+                <div className="flex gap-1.5 items-center justify-center h-4">
+                  <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 rounded-full bg-fuchsia-400 animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '300ms' }}></div>
                 </div>
               </div>
             </motion.div>
           )}
 
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} className="h-4" />
         </div>
       </main>
 
-      {/* Input area */}
+      {/* אזור הקלדה צף - Floating Input Bar */}
       <motion.div
-        initial={{ y: 20, opacity: 0 }}
+        initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.3, duration: 0.4 }}
-        className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-zinc-950 dark:via-zinc-950/95 z-20 p-6 pt-12"
+        transition={{ delay: 0.2, duration: 0.5, type: "spring" }}
+        className="fixed bottom-0 left-0 right-0 z-50 p-4 md:p-6 bg-gradient-to-t from-slate-50 via-slate-50/90 to-transparent dark:from-slate-950 dark:via-slate-950/90 pb-8 md:pb-8 pointer-events-none"
       >
-        <div className="max-w-lg mx-auto">
-          <div className="relative flex items-center shadow-lg shadow-violet-500/5 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm border border-zinc-200 dark:border-zinc-800">
+        <div className="max-w-2xl mx-auto pointer-events-auto">
+          <div className="relative flex items-center p-1.5 shadow-2xl shadow-indigo-500/10 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 focus-within:ring-4 focus-within:ring-indigo-500/20 focus-within:border-indigo-300 dark:focus-within:border-indigo-500/50 transition-all duration-300">
             <input
               dir="rtl"
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="שאל אותי כל דבר על ישראל בידור..."
-              className="w-full h-14 pr-5 pl-14 rounded-full bg-transparent border-none focus:ring-2 focus:ring-violet-500/20 text-sm placeholder:text-zinc-400"
+              placeholder="שאל אותי משהו, למשל: על מה מדברים היום?"
+              className="w-full h-12 md:h-14 pr-6 pl-16 rounded-full bg-transparent border-none focus:outline-none focus:ring-0 text-[15px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
               disabled={isLoading}
             />
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || isLoading}
-              className="absolute left-2 w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-violet-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:from-violet-700 hover:to-violet-800 active:scale-95 transition-all shadow-md shadow-violet-500/20"
+              className="absolute left-1.5 md:left-2 w-10 h-10 md:w-11 md:h-11 rounded-full bg-gradient-to-tr from-indigo-600 to-fuchsia-500 text-white flex items-center justify-center disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed hover:scale-105 active:scale-95 transition-all duration-300 shadow-md shadow-indigo-500/30"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 rotate-180">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 md:w-6 md:h-6 -rotate-90">
                 <path d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95l14.095-5.633a.75.75 0 0 0 0-1.394L3.105 2.288Z" />
               </svg>
             </button>

@@ -2,35 +2,28 @@
 
 /* Custom Theme - Tailwind v4 CSS Variables */
 @theme {
-  /* Colors */
-  --color-violet-50: #faf5ff;
-  --color-violet-100: #f3e8ff;
-  --color-violet-200: #e9d5ff;
-  --color-violet-300: #d8b4fe;
-  --color-violet-400: #c084fc;
-  --color-violet-500: #a855f7;
-  --color-violet-600: #9333ea;
-  --color-violet-700: #7e22ce;
-  --color-violet-800: #6b21a8;
-  --color-violet-900: #581c87;
-  --color-violet-950: #3b0764;
-
   /* Font families */
   --font-family-hebrew: var(--font-hebrew);
   --font-family-display: var(--font-display);
 
-  /* Shadows */
-  --shadow-soft: 0 10px 40px -10px rgba(0, 0, 0, 0.08);
-  --shadow-glass: 0 4px 30px rgba(0, 0, 0, 0.1);
-  --shadow-glow: 0 0 20px rgba(147, 51, 234, 0.3);
+  /* Premium Shadows */
+  --shadow-soft: 0 10px 40px -10px rgba(0, 0, 0, 0.05);
+  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.4); /* זוהר אינדיגו */
 
   /* Border radius */
-  --radius-bento: 22px;
+  --radius-bento: 24px;
+
+  /* Custom Animations for Tailwind v4 */
+  --animate-blob: blob 7s infinite;
 }
 
 /* Body defaults */
 body {
   font-family: var(--font-hebrew), var(--font-display), sans-serif;
+  /* החלקת פונטים קריטית למראה פרימיום */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom utilities */
@@ -47,17 +40,43 @@ body {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Custom Premium Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(99, 102, 241, 0.2); /* צבע המותג בשקיפות */
+    border-radius: 20px;
+  }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(99, 102, 241, 0.4);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(99, 102, 241, 0.6);
+  }
+
+  /* Animation utility helper */
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
 }
 
-/* Glass effect */
+/* Premium Glass effect (Apple-like) */
 .glass {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 .dark .glass {
-  background: rgba(18, 18, 18, 0.85);
+  background: rgba(15, 23, 42, 0.55); /* שימוש בגוון Slate עמוק */
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Animations */
@@ -90,16 +109,20 @@ body {
   }
 }
 
+/* אנימציית רקע מרחף (Blob) למסך הבית והצ'אט */
+@keyframes blob {
+  0% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.5s ease-out;
 }
 
 .animate-slide-up {
   animation: slideUp 0.3s ease-out;
-}
-
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Hotspot pulse */
@@ -118,24 +141,30 @@ body {
   animation: hotspot-pulse 2s ease-in-out infinite;
 }
 
-/* Skeleton shimmer for loading states */
+/* Skeleton shimmer for loading states - עידון צבעים */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(90deg, var(--color-zinc-200, #e4e4e7) 25%, var(--color-zinc-100, #f4f4f5) 50%, var(--color-zinc-200, #e4e4e7) 75%);
+  background: linear-gradient(90deg, #f8fafc 25%, #e2e8f0 50%, #f8fafc 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  animation: shimmer 1.5s infinite linear;
 }
 
 .dark .skeleton-shimmer {
-  background: linear-gradient(90deg, var(--color-zinc-800, #27272a) 25%, var(--color-zinc-700, #3f3f46) 50%, var(--color-zinc-800, #27272a) 75%);
+  background: linear-gradient(90deg, #0f172a 25%, #1e293b 50%, #0f172a 75%);
   background-size: 200% 100%;
 }
 
-/* Shadow utility */
+/* Shadow utilities */
 .shadow-soft {
   box-shadow: var(--shadow-soft);
+}
+.shadow-glass {
+  box-shadow: var(--shadow-glass);
+}
+.shadow-glow {
+  box-shadow: var(--shadow-glow);
 }
