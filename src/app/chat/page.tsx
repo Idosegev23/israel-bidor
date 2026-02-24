@@ -214,9 +214,9 @@ export default function ChatPage() {
                           </p>
                         </div>
 
-                        {/* Attachments Area */}
+                        {/* Attachments Area — compact inline links */}
                         {msg.attachments && msg.attachments.length > 0 && isLast && (
-                          <div className="flex flex-col gap-3 mt-2 max-w-full">
+                          <div className="flex flex-col gap-2 mt-2 max-w-full">
                             <MessageErrorBoundary>
                               {msg.attachments
                                 .filter((a) => a.type === 'talent_card')
@@ -230,9 +230,9 @@ export default function ChatPage() {
                               <ContentCardStrip
                                 items={msg.attachments
                                   .filter((a) => a.type === 'content_card')
-                                  .slice(0, 4)
+                                  .slice(0, 2)
                                   .map((a) => a.data as ContentCardData)}
-                                title="תוכן שכדאי לך לראות"
+                                title="פוסטים קשורים"
                                 onAskAbout={handleSend}
                               />
                             </MessageErrorBoundary>

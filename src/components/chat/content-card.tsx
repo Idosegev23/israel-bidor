@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Flame, ExternalLink, MessageCircle, Sparkles } from 'lucide-react';
+import { ExternalLink, Heart } from 'lucide-react';
 
 export interface ContentCardData {
   id: string;
@@ -24,107 +23,51 @@ interface ContentCardProps {
   onAskAbout?: (question: string) => void;
 }
 
-export function ContentCard({ data, compact = false, onAskAbout }: ContentCardProps) {
-  const [imgError, setImgError] = useState(false);
+export function ContentCard({ data }: ContentCardProps) {
   const likes = data.views_30m ?? 0;
+  const displayTitle = (data.title || 'פוסט מישראל בידור').slice(0, 60);
 
-  const heatLevel = (data.heat_score || 0) > 500
-    ? 'text-red-600 dark:text-red-400'
-    : (data.heat_score || 0) > 200
-    ? 'text-amber-600 dark:text-amber-400'
-    : 'text-zinc-500 dark:text-zinc-400';
-
-  const displayTitle = data.title || 'פוסט מישראל בידור';
-
-  const postHint = data.title.slice(0, 40);
-  const starters = [
-    { icon: MessageCircle, text: 'ספר לי עוד', query: `ספר לי עוד על: "${postHint}"` },
-    { icon: Sparkles, text: 'מה הסיפור?', query: `מה הסיפור מאחורי "${postHint}"?` },
-  ];
-
-  const hasThumbnail = data.thumbnail_url && !imgError;
+  const formattedLikes = likes >= 1000
+    ? `${(likes / 1000).toFixed(1)}K`
+    : likes > 0
+    ? likes.toLocaleString()
+    : null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      className={`group rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-violet-300 dark:hover:border-violet-700 transition-all duration-200 shadow-sm hover:shadow-md ${compact ? 'w-48' : 'w-full'}`}
+    <motion.a
+      href={data.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.25 }}
+      className="group flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/50 hover:border-indigo-300 dark:hover:border-indigo-500/50 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all duration-200 shadow-sm hover:shadow-md max-w-sm"
     >
-      <a
-        href={data.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block"
-      >
-        {hasThumbnail ? (
-          <div className="relative aspect-[16/10] bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-            <img
-              src={data.thumbnail_url!}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              referrerPolicy="no-referrer"
-              onError={() => setImgError(true)}
-            />
-            {likes > 1000 && (
-              <div className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm px-2 py-0.5 text-[11px] font-medium">
-                <Flame className={`h-3 w-3 ${heatLevel}`} />
-                <span className={heatLevel}>{(likes / 1000).toFixed(1)}K</span>
-              </div>
-            )}
-            <div className="absolute top-2 right-2 rounded-full bg-zinc-900/70 backdrop-blur-sm p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <ExternalLink className="h-3 w-3 text-white" />
-            </div>
-          </div>
-        ) : (
-          <div className="relative aspect-[16/10] bg-gradient-to-br from-violet-100 to-orange-50 dark:from-violet-950 dark:to-zinc-900 flex items-center justify-center">
-            <span className="text-3xl opacity-40">📸</span>
-            <div className="absolute top-2 right-2 rounded-full bg-zinc-900/70 backdrop-blur-sm p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <ExternalLink className="h-3 w-3 text-white" />
-            </div>
-          </div>
-        )}
-      </a>
-
-      <div className={compact ? 'p-2.5' : 'p-3'}>
-        {data.reason && (
-          <p className="text-[10px] font-medium text-violet-600 dark:text-violet-400 mb-1 line-clamp-1">
-            {data.reason}
-          </p>
-        )}
-        <h4 className={`font-medium text-zinc-900 dark:text-zinc-50 leading-snug ${compact ? 'text-xs line-clamp-2' : 'text-[13px] line-clamp-2'}`}>
+      {/* Compact info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
           {displayTitle}
-        </h4>
-        {!compact && likes > 0 && (
-          <div className="flex items-center gap-1 mt-1.5 text-[11px] text-zinc-400 dark:text-zinc-500">
-            <Heart className="h-3 w-3" />
-            <span>{likes.toLocaleString()}</span>
-          </div>
-        )}
-
-        {/* Conversation starters */}
-        {!compact && onAskAbout && (
-          <div className="flex gap-1.5 mt-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-            {starters.map((starter, i) => {
-              const Icon = starter.icon;
-              return (
-                <button
-                  key={i}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onAskAbout(starter.query);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/30 dark:hover:bg-violet-950/50 rounded-lg text-[11px] font-medium text-violet-700 dark:text-violet-300 transition-all active:scale-95"
-                >
-                  <Icon className="h-3 w-3" />
-                  <span>{starter.text}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+          {data.reason && (
+            <span className="text-indigo-500 dark:text-indigo-400 font-medium truncate max-w-[140px]">
+              {data.reason}
+            </span>
+          )}
+          {formattedLikes && (
+            <span className="flex items-center gap-0.5 shrink-0">
+              <Heart className="h-3 w-3" />
+              {formattedLikes}
+            </span>
+          )}
+        </div>
       </div>
-    </motion.div>
+
+      {/* Link icon */}
+      <div className="shrink-0 w-7 h-7 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/50 transition-colors">
+        <ExternalLink className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+      </div>
+    </motion.a>
   );
 }
 
@@ -140,22 +83,15 @@ export function ContentCardStrip({
   if (!items.length) return null;
 
   return (
-    <div className="mb-3">
-      {title && (
-        <div className="flex items-center gap-2 mb-2 px-1">
-          <div className="h-1 w-1 rounded-full bg-violet-500"></div>
-          <h3 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-            {title}
-          </h3>
-        </div>
+    <div className="flex flex-col gap-1.5 mt-1">
+      {title && items.length > 1 && (
+        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mr-1">
+          {title}
+        </span>
       )}
-      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
-        {items.map((item) => (
-          <div key={item.id} className="snap-start shrink-0 w-56">
-            <ContentCard data={item} onAskAbout={onAskAbout} />
-          </div>
-        ))}
-      </div>
+      {items.map((item, i) => (
+        <ContentCard key={item.id || i} data={item} onAskAbout={onAskAbout} />
+      ))}
     </div>
   );
 }

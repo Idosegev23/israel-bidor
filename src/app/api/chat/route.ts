@@ -639,7 +639,13 @@ export async function POST(request: NextRequest) {
 
     // Build attachments — only show relevant content cards
     const attachments: Array<{ type: string; data: any }> = [];
-    attachments.push(buildTalentCard(rag.profile));
+
+    // Only show talent card for profile-related questions
+    const profileKeywords = ['מי זה', 'מי את', 'מי הוא', 'ספר על', 'ספרי על', 'מה זה ישראל בידור', 'על החשבון', 'על הערוץ', 'על הדף', 'פרופיל'];
+    const isProfileQuestion = profileKeywords.some(k => message.toLowerCase().includes(k));
+    if (isProfileQuestion) {
+      attachments.push(buildTalentCard(rag.profile));
+    }
 
     // Attach referenced posts first (these are the posts Gemini mentioned in its answer)
     const refIds = new Set(refs.filter((r) => r.kind === 'post').map((r) => String(r.id)));
@@ -648,16 +654,14 @@ export async function POST(request: NextRequest) {
     for (const p of rag.postsForContext) allPostsById.set(String(p.id), p);
 
     const refPosts = [...refIds].map(id => allPostsById.get(id)).filter(Boolean);
-    for (const p of refPosts.slice(0, 4)) {
+    for (const p of refPosts.slice(0, 2)) {
       const reason = refs.find((r) => r.kind === 'post' && String(r.id) === String(p.id))?.reason;
       attachments.push(buildContentCard(p, rag.profile, reason));
     }
 
-    // If Gemini didn't reference specific posts, show the top vector/keyword matches
+    // If Gemini didn't reference specific posts, show top 1 match only
     if (refPosts.length === 0 && rag.postsForContext.length > 0) {
-      for (const p of rag.postsForContext.slice(0, 3)) {
-        attachments.push(buildContentCard(p, rag.profile));
-      }
+      attachments.push(buildContentCard(rag.postsForContext[0], rag.profile));
     }
 
     return NextResponse.json({
