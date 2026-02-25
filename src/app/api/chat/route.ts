@@ -10,7 +10,7 @@ import { findSimilarTalentContent } from '@/lib/trends/embeddings';
 export const runtime = 'nodejs';
 
 const TALENT_USERNAME = 'israel_bidur';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-3-flash-preview';
 const MAX_HISTORY_TURNS = 12;
 
 // ────────────────────────────────────────
