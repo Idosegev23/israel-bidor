@@ -1,6 +1,7 @@
 /**
  * Backfill embeddings for all existing talent posts and highlight items
- * Usage: npm run embeddings:generate
+ * Uses Gemini text-embedding-004 (768 dimensions)
+ * Usage: npx tsx scripts/generate-embeddings.ts
  */
 
 import { config } from 'dotenv';
@@ -8,33 +9,44 @@ import { resolve } from 'path';
 config({ path: resolve(__dirname, '..', '.env.local') });
 
 import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
+import { GoogleGenAI } from '@google/genai';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !OPENAI_API_KEY) {
-  console.error('Missing required env vars: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY');
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !GEMINI_API_KEY) {
+  console.error('Missing required env vars: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY');
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
+const EMBEDDING_MODEL = 'gemini-embedding-001';
 const BATCH_SIZE = 10;
-const DELAY_MS = 500;
+const DELAY_MS = 300;
+
+async function generateEmbedding(text: string): Promise<number[]> {
+  const result = await genAI.models.embedContent({
+    model: EMBEDDING_MODEL,
+    contents: text.substring(0, 8000),
+    config: { outputDimensionality: 768 },
+  });
+  const emb = result.embeddings;
+  return Array.isArray(emb) ? (emb[0]?.values ?? []) : ((emb as any)?.values ?? []);
+}
 
 async function generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
-    input: texts.map((t) => t.substring(0, 8000)),
-  });
-  return response.data.map((d) => d.embedding);
+  const results: number[][] = [];
+  for (const text of texts) {
+    results.push(await generateEmbedding(text));
+  }
+  return results;
 }
 
 async function backfillPosts() {
-  console.log('\n--- Backfilling talent_posts embeddings ---\n');
+  console.log('\n--- Backfilling talent_posts embeddings (Gemini 768d) ---\n');
 
   const { data: posts, error } = await supabase
     .from('talent_posts')
@@ -95,7 +107,7 @@ async function backfillPosts() {
 }
 
 async function backfillHighlightItems() {
-  console.log('\n--- Backfilling talent_highlight_items embeddings ---\n');
+  console.log('\n--- Backfilling talent_highlight_items embeddings (Gemini 768d) ---\n');
 
   const { data: items, error } = await supabase
     .from('talent_highlight_items')
@@ -149,7 +161,7 @@ async function backfillHighlightItems() {
 
 async function main() {
   console.log('============================================');
-  console.log('  Embedding Backfill for Talent Content');
+  console.log('  Embedding Backfill — Gemini text-embedding-004 (768d)');
   console.log('============================================');
 
   const postsResult = await backfillPosts();

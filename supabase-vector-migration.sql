@@ -1,20 +1,18 @@
 -- ============================================
 -- Vector Embeddings Migration for Israel Bidur
--- Run this in Supabase SQL Editor or via setup-vectors.ts
+-- Using Gemini text-embedding-004 (768 dimensions)
 -- ============================================
 
--- Ensure pgvector extension is enabled
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Add embedding columns to talent tables
+-- Embedding columns (768d for Gemini)
 ALTER TABLE talent_posts
-ADD COLUMN IF NOT EXISTS embedding VECTOR(1536);
+ADD COLUMN IF NOT EXISTS embedding VECTOR(768);
 
 ALTER TABLE talent_highlight_items
-ADD COLUMN IF NOT EXISTS embedding VECTOR(1536);
+ADD COLUMN IF NOT EXISTS embedding VECTOR(768);
 
--- Create IVFFlat indexes for fast cosine similarity search
--- lists = 25 is good for up to ~1000 rows
+-- IVFFlat indexes for fast cosine similarity search
 CREATE INDEX IF NOT EXISTS idx_talent_posts_embedding
 ON talent_posts
 USING ivfflat (embedding vector_cosine_ops)
@@ -27,11 +25,10 @@ WITH (lists = 25);
 
 -- ============================================
 -- RPC function for combined similarity search
--- Searches both posts and highlight items
 -- ============================================
 
 CREATE OR REPLACE FUNCTION match_talent_content(
-  query_embedding VECTOR(1536),
+  query_embedding VECTOR(768),
   match_threshold FLOAT DEFAULT 0.7,
   match_count INT DEFAULT 10
 )
@@ -52,7 +49,6 @@ AS $$
 BEGIN
   RETURN QUERY
   (
-    -- Search talent_posts by caption + transcription
     SELECT
       tp.id,
       'post'::TEXT AS content_type,
@@ -70,7 +66,6 @@ BEGIN
 
     UNION ALL
 
-    -- Search talent_highlight_items by transcription
     SELECT
       thi.id,
       'highlight_item'::TEXT AS content_type,
