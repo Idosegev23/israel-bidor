@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TalentCard, type TalentCardData } from '@/components/chat/talent-card';
 import { ContentCardStrip, type ContentCardData } from '@/components/chat/content-card';
 import { MessageErrorBoundary } from '@/components/chat/message-error-boundary';
+import { OptInPopup } from '@/components/chat/opt-in-popup';
 
 // ── Types ───────────────────────────────
 
@@ -48,7 +49,16 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showOptIn, setShowOptIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const userMessageCount = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Check localStorage on mount
+  useEffect(() => {
+    const savedUserId = localStorage.getItem('ib_user_id');
+    if (savedUserId) setUserId(savedUserId);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -74,6 +84,12 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+
+    // Trigger opt-in popup after 2 user messages
+    userMessageCount.current += 1;
+    if (userMessageCount.current === 2 && !localStorage.getItem('ib_opted_in')) {
+      setTimeout(() => setShowOptIn(true), 2000);
+    }
 
     try {
       const response = await fetch('/api/chat', {
@@ -332,6 +348,17 @@ export default function ChatPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Opt-in popup — after 2 messages */}
+      {showOptIn && (
+        <OptInPopup
+          onClose={() => setShowOptIn(false)}
+          onComplete={(id) => {
+            setUserId(id);
+            setShowOptIn(false);
+          }}
+        />
+      )}
     </div>
   );
 }

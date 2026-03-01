@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/daily-scrape",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/us-trends",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
